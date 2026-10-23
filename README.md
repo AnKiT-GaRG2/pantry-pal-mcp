@@ -44,7 +44,7 @@ suggestion, so the server runs with no AWS account.
 ```bash
 npm install
 npm run dev            # http://localhost:3000/mcp
-npm test               # unit tests (date parsing)
+npm test               # 230+ tests: names, dates, store, recipes, every MCP tool, HTTP + auth
 npm run smoke          # with the server running: end-to-end MCP client checks
 ```
 

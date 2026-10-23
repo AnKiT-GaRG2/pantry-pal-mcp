@@ -77,7 +77,7 @@ export function createServer(userId: string): McpServer {
         const taken = Math.min(quantity, item.quantity);
         item.quantity -= taken;
         s.stats.used += taken;
-        let msg = `Okay, used ${taken} ${key}.`;
+        let msg = `Okay, used ${taken} ${spokenName(key, taken)}.`;
         if (item.quantity <= 0) {
           s.pantry = s.pantry.filter((i) => i !== item);
           if (!s.shopping.includes(key)) s.shopping.push(key);
