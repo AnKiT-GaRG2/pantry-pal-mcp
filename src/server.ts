@@ -4,6 +4,7 @@ import { createServer } from "./mcp.js";
 import { withState } from "./store.js";
 import { daysUntil } from "./dates.js";
 import { lastRecipe, recentActions } from "./activity.js";
+import { say } from "./say.js";
 import { spokenName } from "./names.js";
 import { DASHBOARD_HTML } from "./dashboard.js";
 
@@ -52,6 +53,17 @@ app.get("/api/state", async (req, res) => {
   const household = String(req.query.household ?? "default");
   const state = await withState(household, (s) => s);
   res.json({ ...state, activity: recentActions(household), recipe: lastRecipe(household), pantry: state.pantry.map((i) => ({ ...i, spoken: spokenName(i.name, i.quantity, i.unit), daysLeft: i.expires ? daysUntil(i.expires) : null })) });
+});
+
+// On-screen Alexa+ simulator: a spoken sentence in, the tool's spoken reply out.
+app.post("/api/say", async (req, res) => {
+  if (!authorized(req)) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const text = typeof req.body?.text === "string" ? req.body.text.slice(0, 300) : "";
+  const household = typeof req.body?.household === "string" && req.body.household ? req.body.household : "default";
+  res.json(await say(household, text));
 });
 
 app.get("/health", (_req, res) => void res.json({ ok: true }));

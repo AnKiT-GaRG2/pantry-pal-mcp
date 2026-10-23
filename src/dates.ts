@@ -30,6 +30,9 @@ export function parseExpiry(text: string, now = new Date()): string | undefined 
   if (s === "today" || s === "tonight") return today;
   if (s === "tomorrow") return addDays(today, 1);
   if (s === "next week") return addDays(today, 7);
+  if (s === "yesterday") return addDays(today, -1);
+  const ago = s.match(/^(\d+)\s+(day|days|week|weeks)\s+ago$/);
+  if (ago) return addDays(today, -Number(ago[1]) * (ago[2].startsWith("week") ? 7 : 1));
   const rel = s.match(/^(?:in\s+)?(\d+)\s+(day|days|week|weeks)$/);
   if (rel) return addDays(today, Number(rel[1]) * (rel[2].startsWith("week") ? 7 : 1));
   const wd = s.match(/^(?:this\s+|next\s+|on\s+)?([a-z]+)$/);

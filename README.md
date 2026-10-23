@@ -42,6 +42,16 @@ Every response is short, plain spoken text with no markdown, so it reads well th
 Food names are normalised ("Eggs", "an egg" and "egg" are one item) and spoken back with correct plurals.
 Read-only and destructive tools carry MCP tool annotations.
 
+## Try it without an Alexa
+
+The dashboard has an **Alexa+ simulator**: a text box and a microphone button (Chrome or Edge) where you type or say
+a sentence such as "I bought six eggs that expire Sunday". `src/intent.ts` turns it into one of the tool calls, and
+`src/say.ts` runs it on the real MCP server, so the pantry, the replies and the Bedrock call are all the real
+server. It is a stand-in for Alexa's language understanding and it is not a real Alexa. Replies can be read aloud.
+
+`npm run demo` plays a 12-sentence demo conversation against a running server. `docs/DEMO.md` is the recording
+guide, and `docs/SUBMISSION.md` has the Devpost text.
+
 ## Live dashboard
 
 Open `http://localhost:3000/?household=default` to watch the pantry, shopping list and waste score update every
@@ -77,8 +87,9 @@ suggestion, so the server runs with no AWS account. The dashboard labels each re
 ```bash
 npm install
 npm run dev            # http://localhost:3000/mcp
-npm test               # 235+ tests: names, dates, store, recipes, every MCP tool, HTTP + auth
+npm test               # 310+ tests: names, dates, sentence parser, store, recipes, every MCP tool, HTTP + auth
 npm run smoke          # with the server running: end-to-end MCP client checks
+npm run demo           # with the server running: plays the demo conversation
 ```
 
 Environment variables:
@@ -111,7 +122,8 @@ To connect Alexa+, expose the server over HTTPS (for example `ngrok http 3000`) 
 - `src/mcp.ts`: tool definitions
 - `src/recipes.ts`: Bedrock call with local fallback
 - `src/store.ts`: per-household JSON persistence with write serialisation
-- `src/dashboard.ts`: single-page live dashboard served at `/`
+- `src/dashboard.ts`: single-page live dashboard and simulator served at `/`
+- `src/intent.ts`, `src/say.ts`: sentence-to-tool parser and the `/api/say` simulator endpoint
 - `src/activity.ts`: per-household log of recent tool calls and the last recipe, shown on the dashboard
 - `src/names.ts`: food-name normalisation and plurals
 - `src/dates.ts`: natural-language expiry parsing and shelf-life estimates

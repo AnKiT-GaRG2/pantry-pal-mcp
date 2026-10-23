@@ -35,3 +35,9 @@ test("planMeals cycles when days exceed items", async () => {
   assert.equal(text, "Day 1: something with rice. Day 2: something with egg. Day 3: something with rice. Day 4: something with egg.");
 });
 test("planMeals reports local source", async () => assert.equal((await planMeals(three, 2)).source, "local"));
+
+test("local suggestions use spoken plurals", async () => {
+  const eggs = { name: "egg", quantity: 6, unit: "count" };
+  assert.match((await suggestRecipe([eggs, item("milk")], "dinner")).text, /with eggs, milk\./);
+  assert.equal((await planMeals([eggs], 1)).text, "Day 1: something with eggs.");
+});

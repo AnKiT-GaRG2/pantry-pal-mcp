@@ -98,6 +98,39 @@ test("action history is capped", async () => {
   for (let i = 0; i < 12; i++) await fetch(`${open}/mcp`, { method: "POST", headers: h, body: call("pantry_summary", {}) });
   assert.equal((await (await fetch(`${open}/api/state?household=http-cap`)).json()).activity.length, 8);
 });
+const sayTo = (base: string, household: string, text: string, query = "", headers: Record<string, string> = {}) =>
+  fetch(`${base}/api/say${query}`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify({ household, text }) });
+
+test("api/say turns a sentence into a tool call and returns the spoken reply", async () => {
+  const res = await sayTo(open, "http-say", "I bought six eggs that expire tomorrow");
+  assert.equal(res.status, 200);
+  const j = await res.json();
+  assert.equal(j.understood, true);
+  assert.equal(j.tool, "add_pantry_item");
+  assert.equal(j.reply, "Added 6 eggs to your pantry. They expire tomorrow.");
+  const state = await (await fetch(`${open}/api/state?household=http-say`)).json();
+  assert.equal(state.pantry[0].name, "egg");
+  assert.equal(state.activity[0].heard, "I bought six eggs that expire tomorrow");
+});
+test("api/say answers unrecognised sentences with help", async () => {
+  const j = await (await sayTo(open, "http-say2", "sing me a song")).json();
+  assert.equal(j.understood, false);
+  assert.match(j.reply, /didn't catch that/);
+});
+test("api/say tolerates a missing body", async () => {
+  const res = await fetch(`${open}/api/say`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).understood, false);
+});
+test("api/say requires the token when one is set", async () => {
+  assert.equal((await sayTo(locked, "x", "what is in my pantry")).status, 401);
+  assert.equal((await sayTo(locked, "x", "what is in my pantry", "?token=s3cret")).status, 200);
+  assert.equal((await sayTo(locked, "x", "what is in my pantry", "", { authorization: "Bearer s3cret" })).status, 200);
+});
+test("dashboard has the simulator, mic button and its label", async () => {
+  const html = await (await fetch(`${open}/`)).text();
+  for (const part of ['id="mic"', 'id="say"', "Alexa+ simulator", "not a real Alexa", "/api/say"]) assert.ok(html.includes(part), part);
+});
 test("dashboard is served as HTML at /", async () => {
   const res = await fetch(`${open}/`);
   assert.match(res.headers.get("content-type") ?? "", /text\/html/);

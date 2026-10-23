@@ -10,5 +10,5 @@
     "skipLibCheck": true
   },
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/smoke-test.ts"]
+  "exclude": ["src/**/*.test.ts", "src/smoke-test.ts", "src/demo.ts"]
 }

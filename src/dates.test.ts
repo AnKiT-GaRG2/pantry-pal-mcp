@@ -12,7 +12,7 @@ const parseCases: [string, string | undefined][] = [
   ["monday", "2026-10-26"], ["tuesday", "2026-10-27"], ["thursday", "2026-10-22"], ["saturday", "2026-10-24"],
   ["sunday", "2026-10-25"], ["next monday", "2026-11-02"], ["this friday", "2026-10-23"], ["FRIDAY", "2026-10-23"],
   ["2026-12-01", "2026-12-01"], ["2026-12-31", "2026-12-31"], ["2020-01-01", "2020-01-01"],
-  ["2026-13-45", undefined], ["someday", undefined], ["", undefined], ["yesterday", undefined],
+  ["2026-13-45", undefined], ["someday", undefined], ["", undefined], ["yesterday", "2026-10-20"], ["3 days ago", "2026-10-18"], ["1 week ago", "2026-10-14"],
   ["in -3 days", undefined], ["friday afternoon", undefined], ["26-12-01", undefined], ["in a few days", undefined],
 ];
 for (const [text, want] of parseCases) {

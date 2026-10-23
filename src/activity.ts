@@ -4,6 +4,7 @@ export interface Action {
   tool: string;
   args: Record<string, unknown>;
   reply: string;
+  heard?: string; // the sentence spoken to the on-screen simulator, when there was one
 }
 
 export interface Recipe {
@@ -30,3 +31,9 @@ export function recordRecipe(userId: string, kind: Recipe["kind"], text: string,
 
 export const recentActions = (userId: string, n = 8): Action[] => (actions.get(userId) ?? []).slice(0, n);
 export const lastRecipe = (userId: string): Recipe | null => recipes.get(userId) ?? null;
+
+/** Attach the spoken sentence to the action that was just recorded for this household. */
+export function annotateLatest(userId: string, heard: string): void {
+  const latest = actions.get(userId)?.[0];
+  if (latest) latest.heard = heard;
+}

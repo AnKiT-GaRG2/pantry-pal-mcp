@@ -10,7 +10,8 @@
     "start": "node dist/server.js",
     "dev": "tsx src/server.ts",
     "test": "tsx --test src/*.test.ts",
-    "smoke": "tsx src/smoke-test.ts"
+    "smoke": "tsx src/smoke-test.ts",
+    "demo": "tsx src/demo.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1156.0",

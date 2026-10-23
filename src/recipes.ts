@@ -1,5 +1,8 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import type { PantryItem } from "./store.js";
+import { spokenName } from "./names.js";
+
+const said = (i: PantryItem) => spokenName(i.name, i.quantity, i.unit);
 
 const MODEL_ID = process.env.BEDROCK_MODEL_ID;
 
@@ -40,7 +43,7 @@ export async function suggestRecipe(items: PantryItem[], meal: string, diet?: st
     200,
   );
   if (text) return { text, source: "bedrock" };
-  const main = items.slice(0, 3).map((i) => i.name).join(", ");
+  const main = items.slice(0, 3).map(said).join(", ");
   return { text: `For ${meal}, try a simple skillet or stir-fry with ${main}. Season to taste and cook until tender.`, source: "local" };
 }
 
@@ -53,7 +56,7 @@ export async function planMeals(items: PantryItem[], days: number): Promise<Sugg
   if (text) return { text, source: "bedrock" };
   const lines = Array.from({ length: days }, (_, d) => {
     const it = items[d % items.length];
-    return `Day ${d + 1}: something with ${it.name}.`;
+    return `Day ${d + 1}: something with ${said(it)}.`;
   });
   return { text: lines.join(" "), source: "local" };
 }
