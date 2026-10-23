@@ -3,31 +3,57 @@ import type { PantryItem } from "./store.js";
 
 const MODEL_ID = process.env.BEDROCK_MODEL_ID;
 
-// Used when Bedrock is not configured, so the server still works offline.
-function fallback(items: PantryItem[], meal: string): string {
-  const names = items.map((i) => i.name);
-  if (names.length === 0) return "Your pantry is empty, so I have nothing to cook with yet.";
-  const main = names.slice(0, 3).join(", ");
-  return `For ${meal}, try a simple skillet or stir-fry with ${main}. Season to taste and cook until tender.`;
+export interface Suggestion {
+  text: string;
+  source: "bedrock" | "local";
 }
 
-export async function suggestRecipe(items: PantryItem[], meal: string): Promise<{ text: string; source: "bedrock" | "local" }> {
-  if (!MODEL_ID || items.length === 0) return { text: fallback(items, meal), source: "local" };
+const SYSTEM = "You are a voice kitchen assistant. Reply in short spoken sentences. No lists, no markdown, no emojis.";
+
+function describe(items: PantryItem[]): string {
+  return items.map((i) => `${i.quantity} ${i.unit} ${i.name}${i.expires ? ` (expires ${i.expires})` : ""}`).join(", ");
+}
+
+async function ask(prompt: string, maxTokens: number): Promise<string | undefined> {
+  if (!MODEL_ID) return undefined;
   try {
     const client = new BedrockRuntimeClient({ region: process.env.AWS_REGION ?? "us-east-1" });
-    const list = items.map((i) => `${i.quantity} ${i.unit} ${i.name}`).join(", ");
     const res = await client.send(
       new ConverseCommand({
         modelId: MODEL_ID,
-        system: [{ text: "You are a voice kitchen assistant. Reply in at most 3 short spoken sentences. No lists, no markdown." }],
-        messages: [{ role: "user", content: [{ text: `Suggest one ${meal} recipe using mostly: ${list}.` }] }],
-        inferenceConfig: { maxTokens: 200, temperature: 0.5 },
+        system: [{ text: SYSTEM }],
+        messages: [{ role: "user", content: [{ text: prompt }] }],
+        inferenceConfig: { maxTokens, temperature: 0.5 },
       }),
     );
-    const text = res.output?.message?.content?.[0]?.text?.trim();
-    if (text) return { text, source: "bedrock" };
+    return res.output?.message?.content?.[0]?.text?.trim() || undefined;
   } catch (err) {
     console.error("Bedrock call failed, using local fallback:", (err as Error).message);
+    return undefined;
   }
-  return { text: fallback(items, meal), source: "local" };
+}
+
+export async function suggestRecipe(items: PantryItem[], meal: string, diet?: string): Promise<Suggestion> {
+  if (items.length === 0) return { text: "Your pantry is empty, so I have nothing to cook with yet.", source: "local" };
+  const text = await ask(
+    `Suggest one ${meal} recipe${diet ? ` that is ${diet}` : ""} using mostly: ${describe(items)}. Use food expiring soonest first. Max 3 sentences.`,
+    200,
+  );
+  if (text) return { text, source: "bedrock" };
+  const main = items.slice(0, 3).map((i) => i.name).join(", ");
+  return { text: `For ${meal}, try a simple skillet or stir-fry with ${main}. Season to taste and cook until tender.`, source: "local" };
+}
+
+export async function planMeals(items: PantryItem[], days: number): Promise<Suggestion> {
+  if (items.length === 0) return { text: "Your pantry is empty, so I can't plan meals yet.", source: "local" };
+  const text = await ask(
+    `Plan dinners for the next ${days} days using mostly: ${describe(items)}. Use food expiring soonest on the earliest days. One sentence per day, start each with the day number.`,
+    120 * days,
+  );
+  if (text) return { text, source: "bedrock" };
+  const lines = Array.from({ length: days }, (_, d) => {
+    const it = items[d % items.length];
+    return `Day ${d + 1}: something with ${it.name}.`;
+  });
+  return { text: lines.join(" "), source: "local" };
 }

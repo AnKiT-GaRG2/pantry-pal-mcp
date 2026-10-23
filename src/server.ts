@@ -13,8 +13,10 @@ app.post("/mcp", async (req, res) => {
     res.status(401).json({ jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized" }, id: null });
     return;
   }
+  // Each household gets its own pantry, keyed by the x-household-id header.
+  const household = String(req.headers["x-household-id"] ?? "default");
   // Stateless mode: a fresh server + transport per request.
-  const server = createServer();
+  const server = createServer(household);
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   res.on("close", () => {
     transport.close();

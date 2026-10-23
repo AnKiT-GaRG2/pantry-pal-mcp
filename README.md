@@ -10,12 +10,18 @@ Built for the Build, Ship, Shape: Amazon Developer Hackathon (Alexa+ track, AWS 
 
 | Tool | Example utterance |
 |---|---|
-| `add_pantry_item` | "I bought six eggs that expire Friday" |
+| `add_pantry_item` | "I bought six eggs that expire Friday" (understands "tomorrow", "in 3 days", "next week"; estimates shelf life when no date is given) |
 | `use_pantry_item` | "I used two eggs" (adds to the shopping list when something runs out) |
 | `check_expiring` | "What should I eat first?" |
-| `suggest_recipe` | "What can I make for dinner?" |
+| `discard_expired` | "Throw out what's expired" |
+| `waste_report` | "How much food have I wasted?" |
+| `suggest_recipe` | "What vegetarian dinner can I make?" |
+| `plan_meals` | "Plan dinners for the next three days" |
 | `manage_shopping_list` | "Add milk to my shopping list" |
 | `pantry_summary` | "What's in my pantry?" |
+
+It also exposes the `pantry://inventory` resource (full state as JSON) and a `use_it_up` prompt.
+Each household is isolated by the `x-household-id` request header, and writes are serialised per household.
 
 Every response is short, plain spoken text with no markdown, so it reads well through a voice assistant.
 
@@ -30,7 +36,8 @@ suggestion, so the server runs with no AWS account.
 ```bash
 npm install
 npm run dev            # http://localhost:3000/mcp
-npm test               # in another terminal: MCP client smoke test over every tool
+npm test               # unit tests (date parsing)
+npm run smoke          # with the server running: end-to-end MCP client checks
 ```
 
 Environment variables:
@@ -41,7 +48,7 @@ Environment variables:
 | `MCP_AUTH_TOKEN` | If set, requests must send `Authorization: Bearer <token>` |
 | `BEDROCK_MODEL_ID` | Bedrock model or inference profile ID, enables AI recipes |
 | `AWS_REGION` | Bedrock region (default `us-east-1`) |
-| `PANTRY_DATA` | Path to the JSON state file (default `data/state.json`) |
+| `PANTRY_DIR` | Directory for per-household JSON state (default `data/`) |
 
 To connect Alexa+, expose the server over HTTPS (for example `ngrok http 3000`) and register
 `https://<host>/mcp` as your MCP endpoint.
@@ -51,8 +58,10 @@ To connect Alexa+, expose the server over HTTPS (for example `ngrok http 3000`) 
 - `src/server.ts`: Express app exposing the stateless Streamable HTTP endpoint
 - `src/mcp.ts`: tool definitions
 - `src/recipes.ts`: Bedrock call with local fallback
-- `src/store.ts`: JSON file persistence
+- `src/store.ts`: per-household JSON persistence with write serialisation
+- `src/dates.ts`: natural-language expiry parsing and shelf-life estimates
 - `src/smoke-test.ts`: end-to-end client test
+- `Dockerfile`: `docker build -t pantry-pal . && docker run -p 3000:3000 -v pantry:/data pantry-pal`
 
 ## License
 
