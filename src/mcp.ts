@@ -3,6 +3,7 @@ import { z } from "zod";
 import { withState } from "./store.js";
 import { daysUntil, estimateExpiry, parseExpiry } from "./dates.js";
 import { planMeals, suggestRecipe } from "./recipes.js";
+import { recordAction, recordRecipe } from "./activity.js";
 import { isPlural, normalizeName, plural, spokenName } from "./names.js";
 
 const reply = (text: string) => ({ content: [{ type: "text" as const, text }] });
@@ -17,7 +18,15 @@ const when = (iso: string, plural = false) => {
 export function createServer(userId: string): McpServer {
   const server = new McpServer({ name: "pantry-pal", version: "2.0.0" });
 
-  server.registerTool(
+  // Record every tool call so the dashboard can show what the voice assistant just did.
+  const register = ((name: string, config: unknown, handler: (...a: any[]) => any) =>
+    server.registerTool(name, config as any, (async (...a: any[]) => {
+      const res = await handler(...a);
+      recordAction(userId, name, a[0], res.content?.[0]?.text ?? "");
+      return res;
+    }) as any)) as typeof server.registerTool;
+
+  register(
     "add_pantry_item",
     {
       title: "Add pantry item",
@@ -62,7 +71,7 @@ export function createServer(userId: string): McpServer {
     },
   );
 
-  server.registerTool(
+  register(
     "use_pantry_item",
     {
       title: "Use pantry item",
@@ -89,7 +98,7 @@ export function createServer(userId: string): McpServer {
       }),
   );
 
-  server.registerTool(
+  register(
     "check_expiring",
     {
       annotations: { readOnlyHint: true },
@@ -105,7 +114,7 @@ export function createServer(userId: string): McpServer {
       }),
   );
 
-  server.registerTool(
+  register(
     "discard_expired",
     {
       annotations: { destructiveHint: true },
@@ -123,7 +132,7 @@ export function createServer(userId: string): McpServer {
       }),
   );
 
-  server.registerTool(
+  register(
     "waste_report",
     {
       annotations: { readOnlyHint: true },
@@ -140,7 +149,7 @@ export function createServer(userId: string): McpServer {
       }),
   );
 
-  server.registerTool(
+  register(
     "suggest_recipe",
     {
       annotations: { readOnlyHint: true },
@@ -153,11 +162,13 @@ export function createServer(userId: string): McpServer {
     },
     async ({ meal, diet }) => {
       const items = await withState(userId, (s) => [...s.pantry].sort((a, b) => (a.expires ?? "9999").localeCompare(b.expires ?? "9999")).slice(0, 10));
-      return reply((await suggestRecipe(items, meal, diet)).text);
+      const r = await suggestRecipe(items, meal, diet);
+      recordRecipe(userId, "Recipe idea", r.text, r.source);
+      return reply(r.text);
     },
   );
 
-  server.registerTool(
+  register(
     "plan_meals",
     {
       annotations: { readOnlyHint: true },
@@ -167,11 +178,13 @@ export function createServer(userId: string): McpServer {
     },
     async ({ days }) => {
       const items = await withState(userId, (s) => [...s.pantry].sort((a, b) => (a.expires ?? "9999").localeCompare(b.expires ?? "9999")).slice(0, 12));
-      return reply((await planMeals(items, days)).text);
+      const r = await planMeals(items, days);
+      recordRecipe(userId, "Meal plan", r.text, r.source);
+      return reply(r.text);
     },
   );
 
-  server.registerTool(
+  register(
     "manage_shopping_list",
     {
       title: "Manage shopping list",
@@ -196,7 +209,7 @@ export function createServer(userId: string): McpServer {
       }),
   );
 
-  server.registerTool(
+  register(
     "pantry_summary",
     {
       annotations: { readOnlyHint: true }, title: "Pantry summary", description: "Read back everything currently in the pantry.", inputSchema: {} },

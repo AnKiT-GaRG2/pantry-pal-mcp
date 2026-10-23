@@ -57,6 +57,7 @@ test("tools/call over HTTP changes state visible on /api/state", async () => {
   const state = await (await fetch(`${open}/api/state?household=http-a`)).json();
   assert.equal(state.pantry[0].name, "egg");
   assert.equal(typeof state.pantry[0].daysLeft, "number");
+  assert.equal(state.pantry[0].spoken, "eggs");
 });
 test("x-household-id header isolates households", async () => {
   const h = { ...HEADERS, "x-household-id": "http-b" };
@@ -68,10 +69,41 @@ test("default household is used without a header", async () => {
   await fetch(`${open}/mcp`, { method: "POST", headers: HEADERS, body: call("manage_shopping_list", { action: "add", item: "salt" }) });
   assert.deepEqual((await (await fetch(`${open}/api/state`)).json()).shopping, ["salt"]);
 });
+test("api/state reports the latest action and the spoken reply", async () => {
+  const h = { ...HEADERS, "x-household-id": "http-act" };
+  await fetch(`${open}/mcp`, { method: "POST", headers: h, body: call("add_pantry_item", { name: "eggs", quantity: 6 }) });
+  await fetch(`${open}/mcp`, { method: "POST", headers: h, body: call("pantry_summary", {}) });
+  const { activity } = await (await fetch(`${open}/api/state?household=http-act`)).json();
+  assert.equal(activity.length, 2);
+  assert.equal(activity[0].tool, "pantry_summary", "newest first");
+  assert.equal(activity[0].reply, "You have 6 eggs.");
+  assert.equal(activity[1].tool, "add_pantry_item");
+  assert.equal(activity[1].args.quantity, 6);
+});
+test("api/state keeps action history per household", async () => {
+  assert.deepEqual((await (await fetch(`${open}/api/state?household=http-quiet`)).json()).activity, []);
+});
+test("api/state exposes the last recipe with its source", async () => {
+  const h = { ...HEADERS, "x-household-id": "http-rec" };
+  await fetch(`${open}/mcp`, { method: "POST", headers: h, body: call("add_pantry_item", { name: "rice" }) });
+  assert.equal((await (await fetch(`${open}/api/state?household=http-rec`)).json()).recipe, null);
+  await fetch(`${open}/mcp`, { method: "POST", headers: h, body: call("suggest_recipe", { meal: "lunch" }) });
+  const { recipe } = await (await fetch(`${open}/api/state?household=http-rec`)).json();
+  assert.equal(recipe.kind, "Recipe idea");
+  assert.equal(recipe.source, "local");
+  assert.match(recipe.text, /^For lunch/);
+});
+test("action history is capped", async () => {
+  const h = { ...HEADERS, "x-household-id": "http-cap" };
+  for (let i = 0; i < 12; i++) await fetch(`${open}/mcp`, { method: "POST", headers: h, body: call("pantry_summary", {}) });
+  assert.equal((await (await fetch(`${open}/api/state?household=http-cap`)).json()).activity.length, 8);
+});
 test("dashboard is served as HTML at /", async () => {
   const res = await fetch(`${open}/`);
   assert.match(res.headers.get("content-type") ?? "", /text\/html/);
-  assert.match(await res.text(), /<html/i);
+  const html = await res.text();
+  assert.match(html, /<html/i);
+  for (const panel of ["Eat first", "Last Alexa+ action", "Cooking idea", "Shopping list"]) assert.ok(html.includes(panel), panel);
 });
 test("unauthenticated server accepts requests without a token", async () => assert.equal((await fetch(`${open}/api/state`)).status, 200));
 

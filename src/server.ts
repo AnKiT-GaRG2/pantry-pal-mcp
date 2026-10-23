@@ -3,6 +3,8 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createServer } from "./mcp.js";
 import { withState } from "./store.js";
 import { daysUntil } from "./dates.js";
+import { lastRecipe, recentActions } from "./activity.js";
+import { spokenName } from "./names.js";
 import { DASHBOARD_HTML } from "./dashboard.js";
 
 const app = express();
@@ -45,8 +47,9 @@ app.get("/api/state", async (req, res) => {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const state = await withState(String(req.query.household ?? "default"), (s) => s);
-  res.json({ ...state, pantry: state.pantry.map((i) => ({ ...i, daysLeft: i.expires ? daysUntil(i.expires) : null })) });
+  const household = String(req.query.household ?? "default");
+  const state = await withState(household, (s) => s);
+  res.json({ ...state, activity: recentActions(household), recipe: lastRecipe(household), pantry: state.pantry.map((i) => ({ ...i, spoken: spokenName(i.name, i.quantity, i.unit), daysLeft: i.expires ? daysUntil(i.expires) : null })) });
 });
 
 app.get("/health", (_req, res) => void res.json({ ok: true }));
