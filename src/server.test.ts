@@ -120,6 +120,10 @@ test("auth: bearer token is accepted", async () => {
   const res = await fetch(`${locked}/mcp`, { method: "POST", headers: { ...HEADERS, authorization: "Bearer s3cret" }, body: init });
   assert.equal(res.status, 200);
 });
+test("auth: /mcp does not accept the token in the query string", async () => {
+  const res = await fetch(`${locked}/mcp?token=s3cret`, { method: "POST", headers: HEADERS, body: init });
+  assert.equal(res.status, 401);
+});
 test("auth: /api/state requires the token", async () => {
   assert.equal((await fetch(`${locked}/api/state`)).status, 401);
   assert.equal((await fetch(`${locked}/api/state?token=s3cret`)).status, 200);

@@ -6,6 +6,20 @@ expire, and get a dinner idea built from what you already have.
 
 Built for the Build, Ship, Shape: Amazon Developer Hackathon (Alexa+ track, AWS Builder mini challenge).
 
+## Why it matters
+
+Most food waste happens at home. UNEP's Food Waste Index Report 2024 estimates 1.05 billion tonnes of food
+was wasted in 2022, and households were responsible for 60% of it, about 79 kg per person per year
+([UNEP](https://www.unep.org/resources/publication/unep-food-waste-index-report-2024)). USDA puts US food waste at
+30 to 40 percent of the food supply, using 2010 data ([USDA](https://www.usda.gov/foodwaste)).
+
+Pantry Pal targets one part of that: losing track of what you have and when it goes off. Voice suits it because
+that information is needed in the kitchen, often with your hands full. A plain shopping list records what to buy,
+not what you own or when it expires. Pantry Pal tracks quantity and expiry by voice, tells you what to eat first,
+turns it into a dinner idea, and keeps a waste score so the habit has feedback.
+
+It is aimed at households who cook at home and want to waste less without maintaining a spreadsheet.
+
 ## Tools
 
 | Tool | Example utterance |
@@ -35,16 +49,35 @@ two seconds while you issue voice or tool commands. If `MCP_AUTH_TOKEN` is set, 
 
 ## AWS integration
 
-`suggest_recipe` calls Amazon Bedrock (Converse API) when `BEDROCK_MODEL_ID` is set, ranking pantry items
-by expiry so the model prioritizes food that is about to go off. Without it, the tool falls back to a local
-suggestion, so the server runs with no AWS account.
+`suggest_recipe` and `plan_meals` call Amazon Bedrock (Converse API) when `BEDROCK_MODEL_ID` is set, ranking pantry
+items by expiry so the model prioritizes food that is about to go off. Without it, the tools fall back to a local
+suggestion, so the server runs with no AWS account. The dashboard labels each result "Amazon Bedrock" or
+"Local fallback" so you can see which path ran.
+
+### Bedrock setup
+
+1. In the AWS console, open Amazon Bedrock in your region and request access to a text model.
+2. Give the credentials the server runs with permission to call it. A minimal IAM policy:
+   ```json
+   { "Version": "2012-10-17", "Statement": [{ "Effect": "Allow", "Action": ["bedrock:InvokeModel"], "Resource": "*" }] }
+   ```
+3. Make credentials available to the process (`aws configure`, `aws login`, or `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`).
+4. Find a model or inference profile ID your account can use and export it:
+   ```bash
+   aws bedrock list-inference-profiles --region us-east-1 --query 'inferenceProfileSummaries[].inferenceProfileId'
+   export BEDROCK_MODEL_ID=<id from the list>
+   export AWS_REGION=us-east-1
+   npm run dev
+   ```
+5. Ask for a recipe and check the "Cooking idea" card on the dashboard says "Amazon Bedrock". If the call fails
+   (access not granted, wrong region, bad ID) the error is logged to the server console and the local fallback is used.
 
 ## Run it
 
 ```bash
 npm install
 npm run dev            # http://localhost:3000/mcp
-npm test               # 230+ tests: names, dates, store, recipes, every MCP tool, HTTP + auth
+npm test               # 235+ tests: names, dates, store, recipes, every MCP tool, HTTP + auth
 npm run smoke          # with the server running: end-to-end MCP client checks
 ```
 
@@ -61,6 +94,17 @@ Environment variables:
 To connect Alexa+, expose the server over HTTPS (for example `ngrok http 3000`) and register
 `https://<host>/mcp` as your MCP endpoint.
 
+## Authentication and identity
+
+- `MCP_AUTH_TOKEN` protects `/mcp` with `Authorization: Bearer <token>`. The token is accepted only in the header, never in the URL.
+  The dashboard's `/api/state` also accepts `?token=` because a browser page can't set headers.
+- Households are selected by the `x-household-id` header. This suits MCP clients you control, such as the smoke test,
+  MCP Inspector and the demo. **Alexa+ does not send this header.** Amazon's Alexa+ add-on docs describe OAuth 2.1
+  account linking (authorization code with PKCE), where Alexa sends an access token that identifies the customer
+  ([Alexa+ MCP authentication](https://developer.amazon.com/docs/alexaplus/add-ons/mcp-toolkit-authentication)).
+  This project does not implement an OAuth authorization server, so behind a real Alexa+ link every caller shares the
+  `default` household. Adding account linking is the next step for multi-user use.
+
 ## Layout
 
 - `src/server.ts`: Express app exposing the stateless Streamable HTTP endpoint
@@ -68,6 +112,7 @@ To connect Alexa+, expose the server over HTTPS (for example `ngrok http 3000`) 
 - `src/recipes.ts`: Bedrock call with local fallback
 - `src/store.ts`: per-household JSON persistence with write serialisation
 - `src/dashboard.ts`: single-page live dashboard served at `/`
+- `src/activity.ts`: per-household log of recent tool calls and the last recipe, shown on the dashboard
 - `src/names.ts`: food-name normalisation and plurals
 - `src/dates.ts`: natural-language expiry parsing and shelf-life estimates
 - `src/smoke-test.ts`: end-to-end client test

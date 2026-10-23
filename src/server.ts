@@ -13,11 +13,13 @@ app.use(express.json());
 // Optional bearer token so a publicly exposed endpoint isn't open to everyone.
 const TOKEN = process.env.MCP_AUTH_TOKEN;
 
-const authorized = (req: express.Request) =>
-  !TOKEN || req.headers.authorization === `Bearer ${TOKEN}` || req.query.token === TOKEN;
+// /mcp accepts the token only in the Authorization header, so it never lands in URLs or access logs.
+const authorizedHeader = (req: express.Request) => !TOKEN || req.headers.authorization === `Bearer ${TOKEN}`;
+// The browser dashboard can't set headers, so /api/state also accepts ?token=.
+const authorized = (req: express.Request) => authorizedHeader(req) || req.query.token === TOKEN;
 
 app.post("/mcp", async (req, res) => {
-  if (!authorized(req)) {
+  if (!authorizedHeader(req)) {
     res.status(401).json({ jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized" }, id: null });
     return;
   }
