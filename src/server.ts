@@ -1,6 +1,9 @@
 import express from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer } from "./mcp.js";
+import { withState } from "./store.js";
+import { daysUntil } from "./dates.js";
+import { DASHBOARD_HTML } from "./dashboard.js";
 
 const app = express();
 app.use(express.json());
@@ -8,8 +11,11 @@ app.use(express.json());
 // Optional bearer token so a publicly exposed endpoint isn't open to everyone.
 const TOKEN = process.env.MCP_AUTH_TOKEN;
 
+const authorized = (req: express.Request) =>
+  !TOKEN || req.headers.authorization === `Bearer ${TOKEN}` || req.query.token === TOKEN;
+
 app.post("/mcp", async (req, res) => {
-  if (TOKEN && req.headers.authorization !== `Bearer ${TOKEN}`) {
+  if (!authorized(req)) {
     res.status(401).json({ jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized" }, id: null });
     return;
   }
@@ -31,6 +37,17 @@ const notAllowed = (_req: express.Request, res: express.Response) => {
 };
 app.get("/mcp", notAllowed);
 app.delete("/mcp", notAllowed);
+
+// Live read-only dashboard, handy for showing what the voice commands changed.
+app.get("/", (_req, res) => void res.type("html").send(DASHBOARD_HTML));
+app.get("/api/state", async (req, res) => {
+  if (!authorized(req)) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  const state = await withState(String(req.query.household ?? "default"), (s) => s);
+  res.json({ ...state, pantry: state.pantry.map((i) => ({ ...i, daysLeft: i.expires ? daysUntil(i.expires) : null })) });
+});
 
 app.get("/health", (_req, res) => void res.json({ ok: true }));
 

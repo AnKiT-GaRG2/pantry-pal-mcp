@@ -25,6 +25,14 @@ Each household is isolated by the `x-household-id` request header, and writes ar
 
 Every response is short, plain spoken text with no markdown, so it reads well through a voice assistant.
 
+Food names are normalised ("Eggs", "an egg" and "egg" are one item) and spoken back with correct plurals.
+Read-only and destructive tools carry MCP tool annotations.
+
+## Live dashboard
+
+Open `http://localhost:3000/?household=default` to watch the pantry, shopping list and waste score update every
+two seconds while you issue voice or tool commands. If `MCP_AUTH_TOKEN` is set, append `&token=<token>`.
+
 ## AWS integration
 
 `suggest_recipe` calls Amazon Bedrock (Converse API) when `BEDROCK_MODEL_ID` is set, ranking pantry items
@@ -59,6 +67,8 @@ To connect Alexa+, expose the server over HTTPS (for example `ngrok http 3000`) 
 - `src/mcp.ts`: tool definitions
 - `src/recipes.ts`: Bedrock call with local fallback
 - `src/store.ts`: per-household JSON persistence with write serialisation
+- `src/dashboard.ts`: single-page live dashboard served at `/`
+- `src/names.ts`: food-name normalisation and plurals
 - `src/dates.ts`: natural-language expiry parsing and shelf-life estimates
 - `src/smoke-test.ts`: end-to-end client test
 - `Dockerfile`: `docker build -t pantry-pal . && docker run -p 3000:3000 -v pantry:/data pantry-pal`

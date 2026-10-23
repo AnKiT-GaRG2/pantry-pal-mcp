@@ -33,9 +33,13 @@ export function withState<T>(userId: string, fn: (s: State) => T | Promise<T>): 
     } catch {
       state = empty();
     }
+    const before = JSON.stringify(state);
     const result = await fn(state);
-    await fs.mkdir(DIR, { recursive: true });
-    await fs.writeFile(file, JSON.stringify(state, null, 2));
+    const after = JSON.stringify(state);
+    if (after !== before) {
+      await fs.mkdir(DIR, { recursive: true });
+      await fs.writeFile(file, after);
+    }
     return result;
   });
   locks.set(file, run.catch(() => undefined));

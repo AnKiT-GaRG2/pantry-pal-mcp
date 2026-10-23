@@ -1,3 +1,5 @@
+import { normalizeName } from "./names.js";
+
 const DAY_MS = 86_400_000;
 const WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 
@@ -43,13 +45,12 @@ export function parseExpiry(text: string, now = new Date()): string | undefined 
 
 // Rough fridge/pantry shelf life in days, used when no expiry is given.
 const SHELF_LIFE: Record<string, number> = {
-  milk: 7, eggs: 21, egg: 21, bread: 5, spinach: 5, lettuce: 7, tomato: 7, tomatoes: 7,
-  chicken: 2, fish: 2, beef: 4, yogurt: 14, cheese: 21, butter: 60, banana: 5, bananas: 5,
-  apple: 28, apples: 28, carrot: 21, carrots: 21, potato: 30, potatoes: 30, onion: 30, onions: 30,
-  paneer: 7, rice: 365, pasta: 365, flour: 180, lentils: 365,
+  milk: 7, egg: 21, bread: 5, spinach: 5, lettuce: 7, tomato: 7, chicken: 2, fish: 2, beef: 4,
+  yogurt: 14, cheese: 21, butter: 60, banana: 5, apple: 28, carrot: 21, potato: 30, onion: 30,
+  paneer: 7, rice: 365, pasta: 365, flour: 180, lentil: 365, berry: 5, strawberry: 5, peach: 5,
 };
 
 export function estimateExpiry(name: string, now = new Date()): string | undefined {
-  const days = SHELF_LIFE[name.toLowerCase().trim()];
+  const days = SHELF_LIFE[normalizeName(name)];
   return days === undefined ? undefined : addDays(isoDate(now), days);
 }

@@ -3,13 +3,15 @@ import { z } from "zod";
 import { withState } from "./store.js";
 import { daysUntil, estimateExpiry, parseExpiry } from "./dates.js";
 import { planMeals, suggestRecipe } from "./recipes.js";
+import { isPlural, normalizeName, plural, spokenName } from "./names.js";
 
 const reply = (text: string) => ({ content: [{ type: "text" as const, text }] });
-const qty = (n: number, unit: string, name: string) => `${n} ${unit === "count" ? "" : unit + " "}${name}`.replace(/\s+/g, " ");
+const qty = (n: number, unit: string, name: string) => `${n} ${unit === "count" ? "" : unit + " "}${spokenName(name, n, unit)}`.replace(/\s+/g, " ");
 
-const when = (iso: string) => {
+const when = (iso: string, plural = false) => {
   const d = daysUntil(iso);
-  return d < 0 ? "already expired" : d === 0 ? "expires today" : d === 1 ? "expires tomorrow" : `expires in ${d} days`;
+  const v = plural ? "expire" : "expires";
+  return d < 0 ? "already expired" : d === 0 ? `${v} today` : d === 1 ? `${v} tomorrow` : `${v} in ${d} days`;
 };
 
 export function createServer(userId: string): McpServer {
@@ -30,7 +32,7 @@ export function createServer(userId: string): McpServer {
       },
     },
     async ({ name, quantity, unit, expires }) => {
-      const key = name.toLowerCase().trim();
+      const key = normalizeName(name);
       let date: string | undefined;
       let estimated = false;
       if (expires) {
@@ -50,7 +52,11 @@ export function createServer(userId: string): McpServer {
         }
         s.shopping = s.shopping.filter((i) => i !== key);
         let msg = `Added ${qty(quantity, unit, key)} to your pantry.`;
-        if (date) msg += estimated ? ` I'll assume it ${when(date)}.` : ` It ${when(date)}.`;
+        if (date) {
+          const pl = isPlural(key, quantity, unit);
+          const subject = pl ? "they" : "it";
+          msg += estimated ? ` I'll assume ${subject} ${when(date, pl)}.` : ` ${pl ? "They" : "It"} ${when(date, pl)}.`;
+        }
         return reply(msg);
       });
     },
@@ -65,7 +71,7 @@ export function createServer(userId: string): McpServer {
     },
     ({ name, quantity }) =>
       withState(userId, (s) => {
-        const key = name.toLowerCase().trim();
+        const key = normalizeName(name);
         const item = s.pantry.find((i) => i.name === key);
         if (!item) return reply(`You don't have any ${key} in the pantry.`);
         const taken = Math.min(quantity, item.quantity);
@@ -86,6 +92,7 @@ export function createServer(userId: string): McpServer {
   server.registerTool(
     "check_expiring",
     {
+      annotations: { readOnlyHint: true },
       title: "Check expiring food",
       description: "List foods that expire within the given number of days, soonest first. Use for 'what should I eat first?'",
       inputSchema: { days: z.number().int().min(0).max(30).default(3) },
@@ -94,13 +101,14 @@ export function createServer(userId: string): McpServer {
       withState(userId, (s) => {
         const soon = s.pantry.filter((i) => i.expires && daysUntil(i.expires) <= days).sort((a, b) => a.expires!.localeCompare(b.expires!));
         if (soon.length === 0) return reply(`Nothing expires in the next ${days} days.`);
-        return reply(soon.map((i) => `${i.name} ${when(i.expires!)}`).join(". ") + ".");
+        return reply(soon.map((i) => `${spokenName(i.name, i.quantity, i.unit)} ${when(i.expires!, isPlural(i.name, i.quantity, i.unit))}`).join(". ") + ".");
       }),
   );
 
   server.registerTool(
     "discard_expired",
     {
+      annotations: { destructiveHint: true },
       title: "Throw away expired food",
       description: "Remove everything that has already expired from the pantry and record it as wasted.",
       inputSchema: {},
@@ -118,6 +126,7 @@ export function createServer(userId: string): McpServer {
   server.registerTool(
     "waste_report",
     {
+      annotations: { readOnlyHint: true },
       title: "Food waste report",
       description: "Report how much food was used versus thrown away, as a percentage saved.",
       inputSchema: {},
@@ -127,13 +136,14 @@ export function createServer(userId: string): McpServer {
         const { used, wasted } = s.stats;
         if (used + wasted === 0) return reply("I don't have any usage history yet.");
         const pct = Math.round((used / (used + wasted)) * 100);
-        return reply(`You've used ${used} items and wasted ${wasted}. That's ${pct} percent of your food eaten before it went off.`);
+        return reply(`You've used ${used} ${plural(used, "item")} and wasted ${wasted}. That's ${pct} percent of your food eaten before it went off.`);
       }),
   );
 
   server.registerTool(
     "suggest_recipe",
     {
+      annotations: { readOnlyHint: true },
       title: "Suggest a recipe",
       description: "Suggest one meal using the pantry, prioritising food that expires soon. Uses Amazon Bedrock when configured.",
       inputSchema: {
@@ -150,6 +160,7 @@ export function createServer(userId: string): McpServer {
   server.registerTool(
     "plan_meals",
     {
+      annotations: { readOnlyHint: true },
       title: "Plan dinners",
       description: "Plan dinners for the next few days from the pantry, using food that expires first on the earliest days.",
       inputSchema: { days: z.number().int().min(1).max(7).default(3) },
@@ -169,7 +180,7 @@ export function createServer(userId: string): McpServer {
     },
     ({ action, item }) =>
       withState(userId, (s) => {
-        const key = item?.toLowerCase().trim();
+        const key = item ? normalizeName(item) : undefined;
         if (action === "read") return reply(s.shopping.length ? `Your shopping list has ${s.shopping.join(", ")}.` : "Your shopping list is empty.");
         if (action === "clear") {
           s.shopping = [];
@@ -187,7 +198,8 @@ export function createServer(userId: string): McpServer {
 
   server.registerTool(
     "pantry_summary",
-    { title: "Pantry summary", description: "Read back everything currently in the pantry.", inputSchema: {} },
+    {
+      annotations: { readOnlyHint: true }, title: "Pantry summary", description: "Read back everything currently in the pantry.", inputSchema: {} },
     () =>
       withState(userId, (s) =>
         reply(s.pantry.length ? "You have " + s.pantry.map((i) => qty(i.quantity, i.unit, i.name)).join(", ") + "." : "Your pantry is empty."),
